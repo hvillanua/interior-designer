@@ -1,4 +1,4 @@
-.PHONY: run install clean help
+.PHONY: run install clean help cli
 
 # Default target
 help:
@@ -7,7 +7,13 @@ help:
 	@echo "Usage:"
 	@echo "  make install  - Install dependencies"
 	@echo "  make run      - Run the Streamlit app"
+	@echo "  make cli      - Run CLI (use ARGS for arguments)"
 	@echo "  make clean    - Clean output and cache files"
+	@echo ""
+	@echo "CLI Examples:"
+	@echo "  make cli ARGS=\"analyze room.jpg\""
+	@echo "  make cli ARGS=\"analyze room.jpg --model opus --output-format pdf\""
+	@echo "  make cli ARGS=\"--help\""
 	@echo ""
 
 # Install dependencies
@@ -17,6 +23,10 @@ install:
 # Run the Streamlit app
 run:
 	uv run streamlit run src/interior_designer/app.py
+
+# Run CLI with arguments
+cli:
+	uv run interior-designer $(ARGS)
 
 # Clean output and cache
 clean:

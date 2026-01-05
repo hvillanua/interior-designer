@@ -1,7 +1,7 @@
 """Main orchestration pipeline for the interior designer."""
 
-from datetime import datetime
 from pathlib import Path
+from typing import Literal
 
 from .config import get_settings
 from .models.schemas import (
@@ -20,8 +20,9 @@ from .utils.markdown import save_report
 class DesignPipeline:
     """Orchestrates the interior design analysis pipeline."""
 
-    def __init__(self):
-        self.claude_service = ClaudeCodeService()
+    def __init__(self, model: str = "sonnet"):
+        self.model = model
+        self.claude_service = ClaudeCodeService(model=model)
         self.image_service = ImageGenService()
         self.settings = get_settings()
 
@@ -31,6 +32,8 @@ class DesignPipeline:
         preferences: DesignPreferences,
         generate_images: bool = True,
         progress_callback=None,
+        model: str | None = None,
+        output_format: Literal["pdf", "md"] = "pdf",
     ) -> DesignReport:
         """Run the full design analysis pipeline.
 
@@ -39,10 +42,17 @@ class DesignPipeline:
             preferences: User's design preferences
             generate_images: Whether to generate AI visualizations
             progress_callback: Optional callback for progress updates
+            model: Override Claude model (sonnet, opus, haiku)
+            output_format: Output format (pdf or md)
 
         Returns:
             DesignReport with analysis and recommendations
         """
+        # Update model if provided
+        if model and model != self.model:
+            self.model = model
+            self.claude_service = ClaudeCodeService(model=model)
+
         def update_progress(message: str):
             if progress_callback:
                 progress_callback(message)
@@ -126,7 +136,7 @@ class DesignPipeline:
 
         # Save the report
         update_progress("Saving report...")
-        save_report(report, session_dir)
+        save_report(report, session_dir, output_format=output_format)
 
         update_progress("Complete!")
         return report

@@ -113,18 +113,41 @@ def generate_report_markdown(report: DesignReport) -> str:
     return "\n".join(lines)
 
 
-def save_report(report: DesignReport, session_dir: Path) -> Path:
-    """Save the design report as markdown and JSON."""
-    import json
+def save_report(
+    report: DesignReport,
+    session_dir: Path,
+    output_format: str = "pdf",
+) -> Path:
+    """Save the design report as PDF/markdown and JSON.
 
-    # Save markdown
+    Args:
+        report: The design report
+        session_dir: Session directory to save files
+        output_format: 'pdf' or 'md'
+
+    Returns:
+        Path to the main report file (PDF or markdown)
+    """
+    # Always save JSON
+    json_path = session_dir / "analysis.json"
+    json_content = report.model_dump_json(indent=2)
+    json_path.write_text(json_content)
+
+    # Always save markdown
     md_path = session_dir / "report.md"
     md_content = generate_report_markdown(report)
     md_path.write_text(md_content)
 
-    # Save JSON
-    json_path = session_dir / "analysis.json"
-    json_content = report.model_dump_json(indent=2)
-    json_path.write_text(json_content)
+    # Generate PDF if requested
+    if output_format == "pdf":
+        from .pdf import generate_pdf_report
+
+        pdf_path = session_dir / "report.pdf"
+        generate_pdf_report(
+            report,
+            pdf_path,
+            original_images=list(report.original_images) if report.original_images else None,
+        )
+        return pdf_path
 
     return md_path

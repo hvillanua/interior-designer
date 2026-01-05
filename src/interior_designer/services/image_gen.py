@@ -41,6 +41,38 @@ class ImageGenService:
         }
         return mime_types.get(suffix, "image/jpeg")
 
+    def _extract_image_from_response(self, response) -> bytes | None:
+        """Extract image bytes from OpenRouter response."""
+        for choice in response.choices:
+            message = choice.message
+
+            # Check for images array (OpenRouter format)
+            if hasattr(message, "images") and message.images:
+                for img in message.images:
+                    if hasattr(img, "image_url"):
+                        url = img.image_url.get("url", "") if isinstance(img.image_url, dict) else str(img.image_url)
+                        if url.startswith("data:"):
+                            _, data = url.split(",", 1)
+                            return base64.b64decode(data)
+
+            # Check content array
+            if hasattr(message, "content"):
+                content = message.content
+                if isinstance(content, list):
+                    for item in content:
+                        if isinstance(item, dict):
+                            # Check for image_url type
+                            if item.get("type") == "image_url":
+                                url = item.get("image_url", {}).get("url", "")
+                                if url.startswith("data:"):
+                                    _, data = url.split(",", 1)
+                                    return base64.b64decode(data)
+                            # Check for b64_json type
+                            if item.get("type") == "image" and "b64_json" in item:
+                                return base64.b64decode(item["b64_json"])
+
+        return None
+
     def generate_room_variation(
         self,
         original_image: Path,
@@ -91,40 +123,39 @@ Maintain photorealistic quality and natural lighting."""
                         ],
                     }
                 ],
-                # Request image output
                 extra_body={"modalities": ["image", "text"]},
             )
 
-            # Extract the generated image from the response
-            # The response format depends on the model
-            output_path = output_dir / f"generated_{original_image.stem}.png"
+            # Extract image from response
+            image_bytes = self._extract_image_from_response(response)
 
-            # Try to extract image from response
-            for choice in response.choices:
-                message = choice.message
-                if hasattr(message, "content"):
-                    content = message.content
-                    if isinstance(content, list):
-                        for item in content:
-                            if isinstance(item, dict) and item.get("type") == "image_url":
-                                # Decode and save the image
-                                image_url = item.get("image_url", {}).get("url", "")
-                                if image_url.startswith("data:"):
-                                    # Extract base64 data
-                                    _, data = image_url.split(",", 1)
-                                    image_bytes = base64.b64decode(data)
-                                    output_path.write_bytes(image_bytes)
+            if image_bytes:
+                output_path = output_dir / f"generated_{original_image.stem}.png"
+                output_path.write_bytes(image_bytes)
+                return GeneratedImage(
+                    path=output_path,
+                    prompt_used=prompt,
+                    description=description,
+                )
 
-                                    return GeneratedImage(
-                                        path=output_path,
-                                        prompt_used=prompt,
-                                        description=description,
-                                    )
-
-            # If we couldn't extract an image, the model might not support image generation
+            # Log response for debugging
+            import json
+            response_data = {
+                "model": response.model,
+                "choices": [
+                    {
+                        "message": {
+                            "content": str(c.message.content) if c.message else None,
+                            "role": c.message.role if c.message else None,
+                        }
+                    }
+                    for c in response.choices
+                ],
+            }
             raise ValueError(
-                f"Could not extract generated image from response. "
-                f"The model {self.settings.openrouter_image_model} may not support image generation."
+                f"Could not extract image from response. "
+                f"Model: {self.settings.openrouter_image_model}. "
+                f"Response structure: {json.dumps(response_data, indent=2)[:500]}"
             )
 
         except Exception as e:

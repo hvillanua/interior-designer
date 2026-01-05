@@ -28,7 +28,7 @@ class Settings(BaseSettings):
         description="OpenRouter API key",
     )
     openrouter_image_model: str = Field(
-        default="google/gemini-3-pro-image-preview",
+        default="sourceful/riverflow-v2-fast-preview",
         description="OpenRouter model for image generation",
     )
     openrouter_base_url: str = Field(

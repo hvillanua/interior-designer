@@ -2,7 +2,6 @@
 
 import streamlit as st
 from pathlib import Path
-import tempfile
 
 from interior_designer.config import get_settings
 from interior_designer.models.schemas import DesignPreferences
@@ -56,10 +55,27 @@ def main():
             height=100,
         )
 
+        st.markdown("---")
+        st.header("Settings")
+
+        model = st.selectbox(
+            "Claude Model",
+            ["sonnet", "opus", "haiku"],
+            index=0,
+            help="sonnet: balanced, opus: most capable, haiku: fastest",
+        )
+
+        output_format = st.selectbox(
+            "Report Format",
+            ["pdf", "md"],
+            index=0,
+            help="PDF includes embedded images",
+        )
+
         generate_images = st.checkbox(
-            "Generate AI room visualizations",
+            "Generate AI visualizations",
             value=True,
-            help="Uses OpenRouter API to generate images (requires API key)",
+            help="Uses OpenRouter API ($0.03/image)",
         )
 
         st.markdown("---")
@@ -94,7 +110,7 @@ def main():
             "🔍 Analyze Rooms",
             type="primary",
             disabled=not uploaded_files,
-            width="stretch",
+            use_container_width=True,
         ):
             if not uploaded_files:
                 st.error("Please upload at least one room photo.")
@@ -126,7 +142,6 @@ def main():
             def update_progress(message: str):
                 nonlocal current_step
                 progress_text.text(message)
-                # Find which step we're on
                 for i, step in enumerate(steps):
                     if step.lower() in message.lower():
                         current_step = i
@@ -134,12 +149,14 @@ def main():
                 progress_bar.progress((current_step + 1) / len(steps))
 
             try:
-                pipeline = DesignPipeline()
+                pipeline = DesignPipeline(model=model)
                 report = pipeline.run(
                     image_paths=image_paths,
                     preferences=preferences,
                     generate_images=generate_images,
                     progress_callback=update_progress,
+                    model=model,
+                    output_format=output_format,
                 )
 
                 progress_bar.progress(1.0)
@@ -209,24 +226,42 @@ def main():
                             st.image(
                                 str(gen_img.path),
                                 caption=gen_img.description,
-                                width="stretch",
+                                use_container_width=True,
                             )
+                            st.caption(f"*Prompt: {gen_img.prompt_used[:100]}...*")
 
                 # Summary
                 st.subheader("📝 Summary")
                 st.markdown(report.summary)
 
-                # Download report
+                # Download buttons
                 st.markdown("---")
-                report_path = session_dir / "report.md"
-                if report_path.exists():
-                    st.download_button(
-                        "📥 Download Full Report",
-                        report_path.read_text(),
-                        file_name=f"design_report_{report.session_id}.md",
-                        mime="text/markdown",
-                        width="stretch",
-                    )
+                st.subheader("📥 Download Report")
+
+                col_dl1, col_dl2 = st.columns(2)
+
+                with col_dl1:
+                    pdf_path = session_dir / "report.pdf"
+                    if pdf_path.exists():
+                        with open(pdf_path, "rb") as f:
+                            st.download_button(
+                                "📄 Download PDF",
+                                f.read(),
+                                file_name=f"design_report_{report.session_id}.pdf",
+                                mime="application/pdf",
+                                use_container_width=True,
+                            )
+
+                with col_dl2:
+                    md_path = session_dir / "report.md"
+                    if md_path.exists():
+                        st.download_button(
+                            "📝 Download Markdown",
+                            md_path.read_text(),
+                            file_name=f"design_report_{report.session_id}.md",
+                            mime="text/markdown",
+                            use_container_width=True,
+                        )
 
             except Exception as e:
                 st.error(f"❌ Analysis failed: {str(e)}")

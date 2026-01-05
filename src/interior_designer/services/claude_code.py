@@ -13,15 +13,16 @@ from ..prompts import ROOM_ANALYSIS_PROMPT, DESIGN_RECOMMENDATIONS_PROMPT, SUMMA
 class ClaudeCodeService:
     """Service for interacting with Claude via Claude Code CLI."""
 
-    def __init__(self):
+    def __init__(self, model: str = "sonnet"):
         self.settings = get_settings()
+        self.model = model
 
     def _run_claude(self, prompt: str) -> str:
         """Run Claude Code with a prompt and return the response."""
         cmd = [
             "claude",
             "-p", prompt,
-            "--model", self.settings.claude_model,
+            "--model", self.model,
         ]
 
         try:
