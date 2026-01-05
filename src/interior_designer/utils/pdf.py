@@ -8,6 +8,31 @@ from fpdf import FPDF
 from ..models.schemas import DesignReport
 
 
+def sanitize_text(text: str) -> str:
+    """Replace Unicode characters not supported by basic PDF fonts."""
+    replacements = {
+        "—": "-",  # em dash
+        "–": "-",  # en dash
+        "'": "'",  # smart quote
+        "'": "'",  # smart quote
+        """: '"',  # smart quote
+        """: '"',  # smart quote
+        "…": "...",  # ellipsis
+        "•": "*",  # bullet
+        "→": "->",  # arrow
+        "←": "<-",  # arrow
+        "×": "x",  # multiplication
+        "÷": "/",  # division
+        "°": " deg",  # degree
+        "™": "(TM)",  # trademark
+        "©": "(c)",  # copyright
+        "®": "(R)",  # registered
+    }
+    for old, new in replacements.items():
+        text = text.replace(old, new)
+    return text
+
+
 class DesignReportPDF(FPDF):
     """Custom PDF class for design reports."""
 
@@ -68,17 +93,16 @@ class DesignReportPDF(FPDF):
         """Add body text."""
         self.set_font("helvetica", "", 10)
         self.set_text_color(0, 0, 0)
-        self.multi_cell(0, 5, text)
+        self.multi_cell(0, 5, sanitize_text(text))
         self.ln(2)
 
-    def bullet_point(self, text: str, indent: int = 10):
+    def bullet_point(self, text: str):
         """Add a bullet point."""
         self.set_font("helvetica", "", 10)
         self.set_text_color(0, 0, 0)
-        x = self.get_x()
-        self.set_x(x + indent)
-        self.cell(5, 5, chr(149))  # Bullet character
-        self.multi_cell(0, 5, text)
+        # Reset x to left margin before adding bullet
+        self.set_x(self.l_margin)
+        self.multi_cell(0, 5, f"    - {sanitize_text(text)}")
 
     def priority_badge(self, priority: str):
         """Add a priority badge."""
@@ -91,7 +115,7 @@ class DesignReportPDF(FPDF):
         self.set_fill_color(r, g, b)
         self.set_text_color(255, 255, 255)
         self.set_font("helvetica", "B", 8)
-        self.cell(20, 6, priority.upper(), fill=True, align="C")
+        self.cell(25, 6, priority.upper(), fill=True, align="C", ln=True)
         self.set_text_color(0, 0, 0)
 
     def add_image_safe(self, image_path: Path, width: int = 80):
@@ -143,20 +167,20 @@ def generate_pdf_report(report: DesignReport, output_path: Path, original_images
                 pdf.add_image_safe(original_images[i - 1], width=100)
 
             pdf.set_font("helvetica", "B", 10)
-            pdf.cell(40, 6, "Current Style:")
+            pdf.cell(0, 6, "Current Style:", ln=True)
             pdf.set_font("helvetica", "", 10)
-            pdf.cell(0, 6, analysis.current_style, ln=True)
+            pdf.multi_cell(0, 5, sanitize_text(analysis.current_style))
 
             pdf.set_font("helvetica", "B", 10)
-            pdf.cell(40, 6, "Lighting:")
+            pdf.cell(0, 6, "Lighting:", ln=True)
             pdf.set_font("helvetica", "", 10)
-            pdf.cell(0, 6, analysis.lighting_assessment, ln=True)
+            pdf.multi_cell(0, 5, sanitize_text(analysis.lighting_assessment))
 
             if analysis.color_palette:
                 pdf.set_font("helvetica", "B", 10)
-                pdf.cell(40, 6, "Colors:")
+                pdf.cell(0, 6, "Colors:", ln=True)
                 pdf.set_font("helvetica", "", 10)
-                pdf.cell(0, 6, ", ".join(analysis.color_palette), ln=True)
+                pdf.multi_cell(0, 5, sanitize_text(", ".join(analysis.color_palette)))
 
             if analysis.existing_furniture:
                 pdf.ln(3)
@@ -201,9 +225,9 @@ def generate_pdf_report(report: DesignReport, output_path: Path, original_images
 
             if rec.estimated_cost:
                 pdf.set_font("helvetica", "B", 10)
-                pdf.cell(30, 6, "Est. Cost:")
+                pdf.cell(0, 6, "Estimated Cost:", ln=True)
                 pdf.set_font("helvetica", "", 10)
-                pdf.cell(0, 6, rec.estimated_cost, ln=True)
+                pdf.multi_cell(0, 5, sanitize_text(rec.estimated_cost))
 
             if rec.product_suggestions:
                 pdf.ln(2)
@@ -221,11 +245,11 @@ def generate_pdf_report(report: DesignReport, output_path: Path, original_images
 
         for gen_img in report.generated_images:
             if gen_img.path.exists():
-                pdf.subsection_header(gen_img.description)
+                pdf.subsection_header(sanitize_text(gen_img.description))
                 pdf.add_image_safe(gen_img.path, width=150)
                 pdf.set_font("helvetica", "I", 8)
                 pdf.set_text_color(100, 100, 100)
-                pdf.multi_cell(0, 4, f"Prompt: {gen_img.prompt_used[:200]}...")
+                pdf.multi_cell(0, 4, sanitize_text(f"Prompt: {gen_img.prompt_used[:200]}..."))
                 pdf.set_text_color(0, 0, 0)
                 pdf.ln(10)
 

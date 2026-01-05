@@ -1,13 +1,13 @@
 """Image generation service using OpenRouter."""
 
 import base64
-import httpx
 from pathlib import Path
 
 from openai import OpenAI
 
 from ..config import get_settings
 from ..models.schemas import GeneratedImage
+from ..utils.image import resize_image_for_api
 
 
 class ImageGenService:
@@ -24,22 +24,19 @@ class ImageGenService:
             },
         )
 
-    def _encode_image(self, image_path: Path) -> str:
-        """Encode an image file to base64."""
-        with open(image_path, "rb") as f:
-            return base64.b64encode(f.read()).decode("utf-8")
+    def _encode_image(self, image_path: Path, max_size: int = 1024) -> str:
+        """Encode and resize an image file to base64.
 
-    def _get_image_mime_type(self, image_path: Path) -> str:
-        """Get MIME type for an image file."""
-        suffix = image_path.suffix.lower()
-        mime_types = {
-            ".jpg": "image/jpeg",
-            ".jpeg": "image/jpeg",
-            ".png": "image/png",
-            ".gif": "image/gif",
-            ".webp": "image/webp",
-        }
-        return mime_types.get(suffix, "image/jpeg")
+        Args:
+            image_path: Path to image file
+            max_size: Maximum dimension for resizing (default 1024px)
+
+        Returns:
+            Base64-encoded JPEG string
+        """
+        # Resize image to avoid API payload limits
+        image_bytes = resize_image_for_api(image_path, max_size=max_size)
+        return base64.b64encode(image_bytes).decode("utf-8")
 
     def _extract_image_from_response(self, response) -> bytes | None:
         """Extract image bytes from OpenRouter response."""
@@ -93,9 +90,9 @@ class ImageGenService:
         """
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        # Encode the original image
+        # Encode and resize the original image (always JPEG after resize)
         image_data = self._encode_image(original_image)
-        mime_type = self._get_image_mime_type(original_image)
+        mime_type = "image/jpeg"
 
         # Create the prompt for image editing
         full_prompt = f"""Edit this room image according to the following instructions.

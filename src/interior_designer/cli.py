@@ -160,5 +160,92 @@ def models():
     console.print("\nUse with: --model <name>")
 
 
+@app.command(name="test-pdf")
+def test_pdf(
+    output_format: Annotated[
+        str,
+        typer.Option("--output-format", "-f", help="Output format: pdf, md"),
+    ] = "pdf",
+):
+    """Test PDF generation with mock data (no API calls)."""
+    from datetime import datetime
+    from interior_designer.models.schemas import (
+        DesignReport, RoomAnalysis, DesignRecommendation
+    )
+    from interior_designer.utils.markdown import save_report
+    from interior_designer.utils.image import create_session_dir
+
+    console.print("[bold]Testing PDF generation with mock data...[/bold]\n")
+
+    settings = get_settings()
+    session_dir = create_session_dir(settings.ensure_output_dir())
+    session_id = session_dir.name
+
+    # Create mock data with various Unicode characters to test sanitization
+    mock_analysis = RoomAnalysis(
+        room_type="living room",
+        current_style="Contemporary-Transitional with clean lines",
+        estimated_dimensions="15' x 20' - approximately 300 sq ft",
+        existing_furniture=["Gray sectional sofa", "Light wood coffee table", "Floor lamp"],
+        color_palette=["Warm white", "Light gray", "Natural wood tones"],
+        lighting_assessment="Good natural light from windows - could use accent lighting",
+        strengths=["Open floor plan", "Neutral palette", "Quality flooring"],
+        improvement_opportunities=["Add statement lighting", "Layer textures", "Include artwork"],
+    )
+
+    mock_recommendations = [
+        DesignRecommendation(
+            category="lighting",
+            priority="high",
+            current_state="Room relies on natural light and basic fixtures",
+            recommendation="Install a modern pendant light or chandelier as a focal point - consider dimmable options",
+            estimated_cost="$200-$500 for quality fixture",
+            product_suggestions=["West Elm Mobile Chandelier", "CB2 Sputnik Pendant"],
+        ),
+        DesignRecommendation(
+            category="decor",
+            priority="high",
+            current_state="Walls are bare with no artwork or visual interest",
+            recommendation="Create a gallery wall or add large-scale artwork above the sofa",
+            estimated_cost="$150-$400 depending on pieces",
+            product_suggestions=["Society6 prints", "Local artist originals"],
+        ),
+        DesignRecommendation(
+            category="textiles",
+            priority="medium",
+            current_state="Limited soft textures in the space",
+            recommendation="Add throw pillows, blankets, and an area rug to layer textures",
+            estimated_cost="$300-$600 for complete set",
+            product_suggestions=["Ruggable washable rugs", "Pottery Barn throw pillows"],
+        ),
+    ]
+
+    mock_summary = """This living room analysis reveals a well-maintained space with strong foundational elements.
+
+The room's greatest assets include its open floor plan, neutral color palette, and quality light wood flooring. These create a versatile canvas for design enhancement.
+
+Key recommendations focus on three areas: lighting improvements to create ambiance, wall decor to add visual interest, and textile layering to increase comfort and warmth.
+
+The suggested improvements align with a medium budget and contemporary style preferences, emphasizing quality over quantity for lasting impact."""
+
+    report = DesignReport(
+        session_id=session_id,
+        room_analyses=[mock_analysis],
+        recommendations=mock_recommendations,
+        summary=mock_summary,
+        generated_images=[],
+        original_images=[],
+    )
+
+    try:
+        output_path = save_report(report, session_dir, output_format)
+        console.print(f"[green]Success![/green] Report saved to: {output_path}")
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        import traceback
+        traceback.print_exc()
+        raise typer.Exit(1)
+
+
 if __name__ == "__main__":
     app()

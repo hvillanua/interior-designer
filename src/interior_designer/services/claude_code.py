@@ -23,6 +23,7 @@ class ClaudeCodeService:
             "claude",
             "-p", prompt,
             "--model", self.model,
+            "--allowedTools", "Read",  # Auto-approve file reads for image analysis
         ]
 
         try:
