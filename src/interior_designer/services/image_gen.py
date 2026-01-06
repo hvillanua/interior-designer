@@ -41,6 +41,7 @@ class ImageGenService:
         prompt: str,
         output_dir: Path,
         description: str = "Room visualization",
+        index: int = 0,
     ) -> GeneratedImage:
         """Generate a room variation based on the original image and prompt.
 
@@ -95,7 +96,7 @@ Maintain photorealistic quality and natural lighting."""
                     _, data = url.split(",", 1)
                     image_bytes = base64.b64decode(data)
 
-                    output_path = output_dir / f"generated_{original_image.stem}.png"
+                    output_path = output_dir / f"generated_{original_image.stem}_{index}.png"
                     output_path.write_bytes(image_bytes)
                     return GeneratedImage(
                         path=output_path,

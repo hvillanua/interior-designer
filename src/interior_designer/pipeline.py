@@ -93,6 +93,7 @@ class DesignPipeline:
             generated_dir = session_dir / "generated"
 
             # Generate images for high-priority recommendations with image prompts
+            img_index = 0
             for rec in all_recommendations:
                 if rec.priority == "high" and rec.image_edit_prompt:
                     try:
@@ -103,8 +104,10 @@ class DesignPipeline:
                             prompt=rec.image_edit_prompt,
                             output_dir=generated_dir,
                             description=f"{rec.category.title()} - {rec.recommendation[:50]}...",
+                            index=img_index,
                         )
                         generated_images.append(gen_image)
+                        img_index += 1
                     except Exception as e:
                         # Log but don't fail the whole pipeline
                         print(f"Warning: Image generation failed: {e}")
