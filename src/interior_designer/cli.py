@@ -160,6 +160,91 @@ def models():
     console.print("\nUse with: --model <name>")
 
 
+@app.command(name="test-image")
+def test_image(
+    prompt: Annotated[
+        str,
+        typer.Option("--prompt", "-p", help="Text prompt for image generation"),
+    ] = "A modern minimalist living room with a gray sofa and wooden floor",
+    model: Annotated[
+        Optional[str],
+        typer.Option("--model", "-m", help="Override image model"),
+    ] = None,
+    image: Annotated[
+        Optional[Path],
+        typer.Option("--image", "-i", help="Optional input image for editing"),
+    ] = None,
+):
+    """Test image generation (text-to-image or image editing)."""
+    from openai import OpenAI
+    from interior_designer.utils.image import create_session_dir
+    import base64
+
+    if image and not image.exists():
+        console.print(f"[red]Error: Image not found: {image}[/red]")
+        raise typer.Exit(1)
+
+    settings = get_settings()
+    image_model = model or settings.openrouter_image_model
+
+    console.print("[bold]Testing image generation...[/bold]\n")
+    console.print(f"Model: [cyan]{image_model}[/cyan]")
+    console.print(f"Prompt: {prompt}")
+    if image:
+        console.print(f"Input image: {image}")
+    console.print()
+
+    client = OpenAI(
+        base_url="https://openrouter.ai/api/v1",
+        api_key=settings.openrouter_api_key.get_secret_value(),
+    )
+
+    # Build message content
+    if image:
+        from interior_designer.utils.image import resize_image_for_api
+        image_bytes = resize_image_for_api(image, max_size=512)
+        image_b64 = base64.b64encode(image_bytes).decode()
+        content = [
+            {"type": "text", "text": prompt},
+            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_b64}"}}
+        ]
+    else:
+        content = prompt
+
+    console.print("Sending request...")
+    try:
+        response = client.chat.completions.create(
+            model=image_model,
+            messages=[{"role": "user", "content": content}],
+            extra_body={"modalities": ["image", "text"]}
+        )
+
+        msg = response.choices[0].message
+        console.print(f"\n[bold]Message type:[/bold] {type(msg)}")
+        console.print(f"[bold]Has images attr:[/bold] {hasattr(msg, 'images')}")
+
+        if hasattr(msg, 'images') and msg.images:
+            console.print(f"[green]Found {len(msg.images)} image(s)![/green]")
+            session_dir = create_session_dir(settings.ensure_output_dir())
+            for i, img in enumerate(msg.images):
+                url = img['image_url']['url']
+                if url.startswith("data:"):
+                    _, data = url.split(",", 1)
+                    img_bytes = base64.b64decode(data)
+                    out_path = session_dir / "generated" / f"test_{i}.png"
+                    out_path.parent.mkdir(exist_ok=True)
+                    out_path.write_bytes(img_bytes)
+                    console.print(f"[green]Saved:[/green] {out_path}")
+        else:
+            console.print(f"[yellow]No images found. Content: {msg.content[:200] if msg.content else 'EMPTY'}[/yellow]")
+
+    except Exception as e:
+        console.print(f"\n[red]Error:[/red] {e}")
+        import traceback
+        traceback.print_exc()
+        raise typer.Exit(1)
+
+
 @app.command(name="test-pdf")
 def test_pdf(
     output_format: Annotated[
